@@ -8,19 +8,20 @@ import io
 # ---------- Config ----------
 st.set_page_config(page_title="OpenAI ChatBot & File Editor", page_icon="💬", layout="wide")
 
-# Sidebar: API key + model selection
-st.sidebar.header("OpenAI settings")
-api_key = st.sidebar.text_input("OPENAI_API_KEY", type="password", placeholder="sk-...", help="Stored only in this session")
-default_model = "gpt-4.1"
-model_options = [
+# ---- Configuration ----
+DEFAULT_MODEL = "gpt-4.1"
+MODEL_OPTIONS = [
     "gpt-4.1-mini",
     "gpt-4.1",
-    "gpt-4.1-mini",
     "gpt-4o",
     "gpt-4o-mini",
     "o4-mini",
 ]
-model = st.sidebar.selectbox("Model", model_options, index=model_options.index(default_model))
+
+# Sidebar: API key + model selection
+st.sidebar.header("OpenAI settings")
+api_key = st.sidebar.text_input("OPENAI_API_KEY", type="password", placeholder="sk-...", help="Stored only in this session")
+model = st.sidebar.selectbox("Model", MODEL_OPTIONS, index=MODEL_OPTIONS.index(DEFAULT_MODEL))
 custom_model = st.sidebar.text_input("Custom model (optional)", placeholder="Override model name")
 if custom_model.strip():
     model = custom_model.strip()
