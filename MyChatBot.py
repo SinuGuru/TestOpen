@@ -2,7 +2,8 @@
 import os
 import streamlit as st
 from openai import OpenAI
-
+import zipfile
+import io
 
 # ---------- Config ----------
 st.set_page_config(page_title="OpenAI ChatBox & File Editor", page_icon="💬", layout="wide")
@@ -93,6 +94,35 @@ def edit_file_with_instructions(file_text, instructions):
         st.error(f"OpenAI error: {e}")
         return ""
 
+def edit_zip_with_instructions(zip_bytes, instructions):
+    # Returns: dict of {filename: edited_content}
+    edited_files = {}
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+        for name in zf.namelist():
+            if zf.getinfo(name).is_dir():
+                continue
+            try:
+                raw = zf.read(name)
+                try:
+                    text = raw.decode("utf-8", errors="replace")
+                except Exception:
+                    continue
+                edited = edit_file_with_instructions(text, instructions)
+                if edited:
+                    edited_files[name] = edited
+            except Exception as e:
+                st.warning(f"Could not process {name}: {e}")
+    return edited_files
+
+def make_zip_from_dict(file_dict):
+    # file_dict: {filename: content(str)}
+    mem_zip = io.BytesIO()
+    with zipfile.ZipFile(mem_zip, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fname, content in file_dict.items():
+            zf.writestr(fname, content)
+    mem_zip.seek(0)
+    return mem_zip
+
 # ---------- UI ----------
 st.title("OpenAI ChatBox + File Editor")
 
@@ -132,10 +162,10 @@ with tab_chat:
 
 # ----- Edit file tab -----
 with tab_edit:
-    st.subheader("Upload a text file to edit")
+    st.subheader("Upload a text file or zip archive to edit")
     uploaded = st.file_uploader(
-        "Supported types: txt, md, py, json, csv, yaml, yml",
-        type=["txt", "md", "py", "json", "csv", "yaml", "yml"],
+        "Supported types: txt, md, py, json, csv, yaml, yml, zip",
+        type=["txt", "md", "py", "json", "csv", "yaml", "yml", "zip"],
         accept_multiple_files=False,
     )
 
@@ -143,16 +173,47 @@ with tab_edit:
         st.session_state.file_content = ""
     if "file_name" not in st.session_state:
         st.session_state.file_name = "edited.txt"
+    if "is_zip" not in st.session_state:
+        st.session_state.is_zip = False
+    if "zip_file_list" not in st.session_state:
+        st.session_state.zip_file_list = []
+    if "zip_preview" not in st.session_state:
+        st.session_state.zip_preview = {}
 
     if uploaded is not None:
-        try:
-            raw = uploaded.read()
-            text = raw.decode("utf-8", errors="replace")
-            st.session_state.file_content = text
-            st.session_state.file_name = uploaded.name
-            st.success(f"Loaded {uploaded.name} ({len(text):,} chars)")
-        except Exception as e:
-            st.error(f"Failed to read file: {e}")
+        st.session_state.is_zip = uploaded.name.lower().endswith(".zip")
+        if st.session_state.is_zip:
+            try:
+                uploaded.seek(0)
+                zip_bytes = uploaded.read()
+                with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+                    file_list = [name for name in zf.namelist() if not zf.getinfo(name).is_dir()]
+                    st.session_state.zip_file_list = file_list
+                    preview = {}
+                    for name in file_list[:10]:  # preview up to 10 files
+                        try:
+                            raw = zf.read(name)
+                            text = raw.decode("utf-8", errors="replace")
+                            preview[name] = text[:500]
+                        except Exception:
+                            preview[name] = "[Could not decode]"
+                    st.session_state.zip_preview = preview
+                st.session_state.file_content = ""
+                st.session_state.file_name = uploaded.name
+                st.success(f"Loaded ZIP: {uploaded.name} ({len(file_list)} files)")
+            except Exception as e:
+                st.error(f"Failed to read zip file: {e}")
+                st.session_state.zip_file_list = []
+                st.session_state.zip_preview = {}
+        else:
+            try:
+                raw = uploaded.read()
+                text = raw.decode("utf-8", errors="replace")
+                st.session_state.file_content = text
+                st.session_state.file_name = uploaded.name
+                st.success(f"Loaded {uploaded.name} ({len(text):,} chars)")
+            except Exception as e:
+                st.error(f"Failed to read file: {e}")
 
     instructions = st.text_area(
         "Editing instructions",
@@ -160,29 +221,70 @@ with tab_edit:
         height=120,
     )
 
-    st.text_area(
-        "Original file content (read-only preview)",
-        value=st.session_state.file_content,
-        height=240,
-        disabled=True,
-    )
-
-    if st.button("Run edit", type="primary", disabled=not bool(st.session_state.file_content.strip())):
-        with st.spinner("Editing with OpenAI..."):
-            edited = edit_file_with_instructions(st.session_state.file_content, instructions)
-            if edited:
-                st.session_state.edited_content = edited
-                st.success("Edit complete.")
-    edited_text = st.session_state.get("edited_content", "")
-    st.text_area(
-        "Edited file content",
-        value=edited_text,
-        height=300,
-    )
-    if edited_text:
-        st.download_button(
-            "Download edited file",
-            data=edited_text.encode("utf-8"),
-            file_name=f"edited_{st.session_state.file_name}",
-            mime="text/plain",
+    if st.session_state.is_zip and st.session_state.zip_file_list:
+        st.markdown("**ZIP file preview (first 10 files):**")
+        for fname, preview in st.session_state.zip_preview.items():
+            st.markdown(f"**{fname}**")
+            st.code(preview, language="")
+    else:
+        st.text_area(
+            "Original file content (read-only preview)",
+            value=st.session_state.file_content,
+            height=240,
+            disabled=True,
         )
+
+    if st.session_state.is_zip and st.session_state.zip_file_list:
+        run_edit_disabled = False if st.session_state.zip_file_list else True
+    else:
+        run_edit_disabled = not bool(st.session_state.file_content.strip())
+
+    if st.button("Run edit", type="primary", disabled=run_edit_disabled):
+        if st.session_state.is_zip and st.session_state.zip_file_list:
+            with st.spinner("Editing all files in ZIP with OpenAI..."):
+                uploaded.seek(0)
+                zip_bytes = uploaded.read()
+                edited_files = edit_zip_with_instructions(zip_bytes, instructions)
+                if edited_files:
+                    st.session_state.edited_zip = edited_files
+                    st.session_state.edited_content = ""
+                    st.success(f"Edited {len(edited_files)} files in ZIP.")
+                else:
+                    st.session_state.edited_zip = {}
+                    st.session_state.edited_content = ""
+        else:
+            with st.spinner("Editing with OpenAI..."):
+                edited = edit_file_with_instructions(st.session_state.file_content, instructions)
+                if edited:
+                    st.session_state.edited_content = edited
+                    st.session_state.edited_zip = {}
+                    st.success("Edit complete.")
+
+    edited_text = st.session_state.get("edited_content", "")
+    edited_zip = st.session_state.get("edited_zip", {})
+
+    if st.session_state.is_zip and edited_zip:
+        st.markdown("**Edited files in ZIP:**")
+        for fname, content in list(edited_zip.items())[:5]:
+            st.markdown(f"**{fname}**")
+            st.code(content[:500], language="")
+        mem_zip = make_zip_from_dict(edited_zip)
+        st.download_button(
+            "Download edited ZIP",
+            data=mem_zip,
+            file_name=f"edited_{st.session_state.file_name}",
+            mime="application/zip",
+        )
+    else:
+        st.text_area(
+            "Edited file content",
+            value=edited_text,
+            height=300,
+        )
+        if edited_text:
+            st.download_button(
+                "Download edited file",
+                data=edited_text.encode("utf-8"),
+                file_name=f"edited_{st.session_state.file_name}",
+                mime="text/plain",
+            )
