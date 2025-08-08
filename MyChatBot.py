@@ -6,7 +6,7 @@ import zipfile
 import io
 
 # ---------- Config ----------
-st.set_page_config(page_title="OpenAI ChatBox & File Editor", page_icon="💬", layout="wide")
+st.set_page_config(page_title="OpenAI ChatBot & File Editor", page_icon="💬", layout="wide")
 
 # Sidebar: API key + model selection
 st.sidebar.header("OpenAI settings")
@@ -124,15 +124,15 @@ def make_zip_from_dict(file_dict):
     return mem_zip
 
 # ---------- UI ----------
-st.title("OpenAI ChatBox + File Editor")
+st.title("OpenAI ChatBot + File Editor")
 
-tab_chat, tab_edit = st.tabs(["Chat", "Edit file"])
+tab_chat, tab_edit = st.tabs(["Chatbot", "Edit file"])
 
-# ----- Chat tab -----
+# ----- Chatbot tab -----
 with tab_chat:
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = [
-            {"role": "system", "content": "You are a helpful assistant."}
+            {"role": "system", "content": "You are a helpful chatbot assistant."}
         ]
     # render history (skip system message)
     for msg in st.session_state.chat_history:
@@ -156,8 +156,8 @@ with tab_chat:
 
     col1, _ = st.columns(2)
     with col1:
-        if st.button("Reset chat"):
-            st.session_state.chat_history = [{"role": "system", "content": "You are a helpful assistant."}]
+        if st.button("Reset chatbot"):
+            st.session_state.chat_history = [{"role": "system", "content": "You are a helpful chatbot assistant."}]
             st.rerun()
 
 # ----- Edit file tab -----
@@ -225,17 +225,17 @@ with tab_edit:
             key="edit_instructions",
         )
     with col_chat:
-        st.markdown("**Chat with AI about your file or instructions**")
+        st.markdown("**Chatbot: Ask about your file or instructions**")
         if "edit_chat_history" not in st.session_state:
             st.session_state.edit_chat_history = [
-                {"role": "system", "content": "You are a helpful assistant for file editing and code tasks."}
+                {"role": "system", "content": "You are a helpful chatbot for file editing and code tasks."}
             ]
         for msg in st.session_state.edit_chat_history:
             if msg["role"] == "system":
                 continue
             with st.chat_message(msg["role"], avatar="💬"):
                 st.write(msg["content"])
-        edit_user_msg = st.chat_input("Ask about your file or instructions", key="edit_chat_input")
+        edit_user_msg = st.chat_input("Ask chatbot about your file or instructions", key="edit_chat_input")
         if edit_user_msg:
             st.session_state.edit_chat_history.append({"role": "user", "content": edit_user_msg})
             with st.chat_message("user", avatar="💬"):
@@ -254,9 +254,9 @@ with tab_edit:
                     st.write(reply)
             if reply:
                 st.session_state.edit_chat_history.append({"role": "assistant", "content": reply})
-        if st.button("Reset chat (edit)", key="reset_edit_chat"):
+        if st.button("Reset chatbot (edit)", key="reset_edit_chat"):
             st.session_state.edit_chat_history = [
-                {"role": "system", "content": "You are a helpful assistant for file editing and code tasks."}
+                {"role": "system", "content": "You are a helpful chatbot for file editing and code tasks."}
             ]
             st.rerun()
 
