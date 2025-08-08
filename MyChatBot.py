@@ -72,7 +72,6 @@ def edit_file_with_instructions(file_text, instructions):
         "Preserve the file's format and structure. Do not add explanations or extra text."
     )
     user_prompt = (
-        "Instructions:\n"
         f"{instructions.strip()}\n\n"
         "File content between <FILE> and </FILE>:\n"
         "<FILE>\n"
