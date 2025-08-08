@@ -250,15 +250,8 @@ with tab_edit:
             st.session_state.is_zip = False
             st.session_state.selected_file = st.session_state.file_names[0] if st.session_state.file_names else None
 
-    # Move instructions and chat input to the top of the tab
-    col_edit, col_chat = st.columns([2, 1])
-    with col_edit:
-        instructions = st.text_area(
-            "Editing instructions",
-            value="Improve clarity and fix grammar. Keep original meaning. Preserve formatting and code blocks.",
-            height=120,
-            key="edit_instructions",
-        )
+    # Move chatbot and instructions to the top of the tab
+    col_chat, col_edit = st.columns([1, 2])
     with col_chat:
         st.markdown("**Chatbot: Ask about your file(s) or instructions**")
         if "edit_chat_history" not in st.session_state:
@@ -289,7 +282,7 @@ with tab_edit:
                             if st.session_state.selected_file:
                                 context += f"\nPreview of {st.session_state.selected_file}:\n{st.session_state.file_contents.get(st.session_state.selected_file, '')[:500]}"
                         chat_messages = st.session_state.edit_chat_history.copy()
-                        chat_messages.insert(1, {"role": "user", "content": f"Current file(s) preview:\n{context}\n\nCurrent instructions:\n{instructions}"})
+                        chat_messages.insert(1, {"role": "user", "content": f"Current file(s) preview:\n{context}\n\nCurrent instructions:\n{st.session_state.get('edit_instructions', '')}"})
                         reply = ai_chat(chat_messages)
                         st.write(reply)
             if reply:
@@ -299,6 +292,13 @@ with tab_edit:
                 {"role": "system", "content": "You are a helpful chatbot for file editing and code tasks."}
             ]
             st.rerun()
+    with col_edit:
+        instructions = st.text_area(
+            "Editing instructions",
+            value="Improve clarity and fix grammar. Keep original meaning. Preserve formatting and code blocks.",
+            height=120,
+            key="edit_instructions",
+        )
 
     # File/project browser and preview
     if st.session_state.is_zip and st.session_state.zip_file_list:
@@ -332,6 +332,13 @@ with tab_edit:
         run_edit_disabled = False
     else:
         run_edit_disabled = True
+
+    # Show code preview before editing
+    if st.session_state.file_names and not st.session_state.edited_files and not st.session_state.edited_zip:
+        st.markdown("**Code preview before editing:**")
+        for fname in st.session_state.file_names[:5]:
+            st.markdown(f"**{fname}**")
+            st.code(st.session_state.file_contents.get(fname, "")[:500], language="")
 
     # Edit button and logic
     if st.button("Run edit", type="primary", disabled=run_edit_disabled):
