@@ -10,7 +10,7 @@ st.set_page_config(page_title="OpenAI ChatBox & File Editor", page_icon="💬", 
 # Sidebar: API key + model selection
 st.sidebar.header("OpenAI settings")
 api_key = st.sidebar.text_input("OPENAI_API_KEY", type="password", placeholder="sk-...", help="Stored only in this session")
-default_model = "gpt-5"
+default_model = "gpt-4.1"
 model_options = [
     "gpt-4.1-mini",
     "gpt-4.1",
