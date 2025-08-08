@@ -134,23 +134,26 @@ with tab_chat:
         st.session_state.chat_history = [
             {"role": "system", "content": "You are a helpful chatbot assistant."}
         ]
-    # render history (skip system message)
-    for msg in st.session_state.chat_history:
-        if msg["role"] == "system":
-            continue
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
+
+    # --- Move chat input to bottom, messages always scroll to bottom ---
+    chat_messages = st.session_state.chat_history[1:]  # skip system
+    chat_container = st.container()
+    with chat_container:
+        for msg in chat_messages:
+            with st.chat_message(msg["role"]):
+                st.write(msg["content"])
 
     user_msg = st.chat_input("Type your message")
     if user_msg:
         st.session_state.chat_history.append({"role": "user", "content": user_msg})
-        with st.chat_message("user"):
-            st.write(user_msg)
+        with chat_container:
+            with st.chat_message("user"):
+                st.write(user_msg)
 
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                reply = ai_chat(st.session_state.chat_history)
-                st.write(reply)
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    reply = ai_chat(st.session_state.chat_history)
+                    st.write(reply)
         if reply:
             st.session_state.chat_history.append({"role": "assistant", "content": reply})
 
@@ -262,30 +265,33 @@ with tab_edit:
             st.session_state.edit_chat_history = [
                 {"role": "system", "content": "You are a helpful chatbot for file editing and code tasks."}
             ]
-        for msg in st.session_state.edit_chat_history:
-            if msg["role"] == "system":
-                continue
-            with st.chat_message(msg["role"], avatar="💬"):
-                st.write(msg["content"])
+        # --- Move chat input to bottom, messages always scroll to bottom ---
+        edit_chat_messages = st.session_state.edit_chat_history[1:]  # skip system
+        edit_chat_container = st.container()
+        with edit_chat_container:
+            for msg in edit_chat_messages:
+                with st.chat_message(msg["role"], avatar="💬"):
+                    st.write(msg["content"])
         edit_user_msg = st.chat_input("Ask chatbot about your file(s) or instructions", key="edit_chat_input")
         if edit_user_msg:
             st.session_state.edit_chat_history.append({"role": "user", "content": edit_user_msg})
-            with st.chat_message("user", avatar="💬"):
-                st.write(edit_user_msg)
-            with st.chat_message("assistant", avatar="💬"):
-                with st.spinner("Thinking..."):
-                    # Add file content and instructions to the context for the AI
-                    context = ""
-                    if st.session_state.is_zip and st.session_state.zip_file_list:
-                        context = f"ZIP file with files: {', '.join(st.session_state.zip_file_list[:10])}..."
-                    elif st.session_state.file_names:
-                        context = f"Project files: {', '.join(st.session_state.file_names[:10])}..."
-                        if st.session_state.selected_file:
-                            context += f"\nPreview of {st.session_state.selected_file}:\n{st.session_state.file_contents.get(st.session_state.selected_file, '')[:500]}"
-                    chat_messages = st.session_state.edit_chat_history.copy()
-                    chat_messages.insert(1, {"role": "user", "content": f"Current file(s) preview:\n{context}\n\nCurrent instructions:\n{instructions}"})
-                    reply = ai_chat(chat_messages)
-                    st.write(reply)
+            with edit_chat_container:
+                with st.chat_message("user", avatar="💬"):
+                    st.write(edit_user_msg)
+                with st.chat_message("assistant", avatar="💬"):
+                    with st.spinner("Thinking..."):
+                        # Add file content and instructions to the context for the AI
+                        context = ""
+                        if st.session_state.is_zip and st.session_state.zip_file_list:
+                            context = f"ZIP file with files: {', '.join(st.session_state.zip_file_list[:10])}..."
+                        elif st.session_state.file_names:
+                            context = f"Project files: {', '.join(st.session_state.file_names[:10])}..."
+                            if st.session_state.selected_file:
+                                context += f"\nPreview of {st.session_state.selected_file}:\n{st.session_state.file_contents.get(st.session_state.selected_file, '')[:500]}"
+                        chat_messages = st.session_state.edit_chat_history.copy()
+                        chat_messages.insert(1, {"role": "user", "content": f"Current file(s) preview:\n{context}\n\nCurrent instructions:\n{instructions}"})
+                        reply = ai_chat(chat_messages)
+                        st.write(reply)
             if reply:
                 st.session_state.edit_chat_history.append({"role": "assistant", "content": reply})
         if st.button("Reset chatbot (edit)", key="reset_edit_chat"):
