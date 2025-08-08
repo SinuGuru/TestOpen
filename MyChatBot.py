@@ -11,9 +11,8 @@ st.set_page_config(page_title="OpenAI ChatBox & File Editor", page_icon="💬", 
 # Sidebar: API key + model selection
 st.sidebar.header("OpenAI settings")
 api_key = st.sidebar.text_input("OPENAI_API_KEY", type="password", placeholder="sk-...", help="Stored only in this session")
-default_model = "gpt-5"
+default_model = "gpt-4.1"
 model_options = [
-    "gpt-5",
     "gpt-4.1-mini",
     "gpt-4.1",
     "gpt-4.1-mini",
@@ -216,11 +215,50 @@ with tab_edit:
             except Exception as e:
                 st.error(f"Failed to read file: {e}")
 
-    instructions = st.text_area(
-        "Editing instructions",
-        value="Improve clarity and fix grammar. Keep original meaning. Preserve formatting and code blocks.",
-        height=120,
-    )
+    # Move instructions and chat input to the top of the tab
+    col_edit, col_chat = st.columns([2, 1])
+    with col_edit:
+        instructions = st.text_area(
+            "Editing instructions",
+            value="Improve clarity and fix grammar. Keep original meaning. Preserve formatting and code blocks.",
+            height=120,
+            key="edit_instructions",
+        )
+    with col_chat:
+        st.markdown("**Chat with AI about your file or instructions**")
+        if "edit_chat_history" not in st.session_state:
+            st.session_state.edit_chat_history = [
+                {"role": "system", "content": "You are a helpful assistant for file editing and code tasks."}
+            ]
+        for msg in st.session_state.edit_chat_history:
+            if msg["role"] == "system":
+                continue
+            with st.chat_message(msg["role"], avatar="💬"):
+                st.write(msg["content"])
+        edit_user_msg = st.chat_input("Ask about your file or instructions", key="edit_chat_input")
+        if edit_user_msg:
+            st.session_state.edit_chat_history.append({"role": "user", "content": edit_user_msg})
+            with st.chat_message("user", avatar="💬"):
+                st.write(edit_user_msg)
+            with st.chat_message("assistant", avatar="💬"):
+                with st.spinner("Thinking..."):
+                    # Add file content and instructions to the context for the AI
+                    context = ""
+                    if st.session_state.is_zip and st.session_state.zip_file_list:
+                        context = f"ZIP file with files: {', '.join(st.session_state.zip_file_list[:10])}..."
+                    else:
+                        context = st.session_state.file_content[:1000]
+                    chat_messages = st.session_state.edit_chat_history.copy()
+                    chat_messages.insert(1, {"role": "user", "content": f"Current file preview:\n{context}\n\nCurrent instructions:\n{instructions}"})
+                    reply = ai_chat(chat_messages)
+                    st.write(reply)
+            if reply:
+                st.session_state.edit_chat_history.append({"role": "assistant", "content": reply})
+        if st.button("Reset chat (edit)", key="reset_edit_chat"):
+            st.session_state.edit_chat_history = [
+                {"role": "system", "content": "You are a helpful assistant for file editing and code tasks."}
+            ]
+            st.rerun()
 
     if st.session_state.is_zip and st.session_state.zip_file_list:
         st.markdown("**ZIP file preview (first 10 files):**")
