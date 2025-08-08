@@ -19,16 +19,16 @@ MODEL_OPTIONS = [
 ]
 
 # Sidebar: API key + model selection
-st.sidebar.header("OpenAI settings")
-api_key = st.sidebar.text_input("OPENAI_API_KEY", type="password", placeholder="sk-...", help="Stored only in this session")
+st.sidebar.header("OpenAI Settings")
+api_key = st.sidebar.text_input("OPENAI_API_KEY", type="password", placeholder="sk-...", help="Stored only for this session")
 model = st.sidebar.selectbox("Model", MODEL_OPTIONS, index=MODEL_OPTIONS.index(DEFAULT_MODEL))
 custom_model = st.sidebar.text_input("Custom model (optional)", placeholder="Override model name")
 if custom_model.strip():
     model = custom_model.strip()
 
-st.sidebar.caption("Note: There is no public model named gpt-5 at this time. Pick one above and later replace with the new model name when available.")
+st.sidebar.caption("Note: There is currently no public model named gpt-5. Select a model above and update the name when a new model becomes available.")
 
-# Initialize OpenAI client lazily when key is present
+# Initialize OpenAI client only when API key is provided
 client = None
 if api_key:
     os.environ["OPENAI_API_KEY"] = api_key
@@ -36,7 +36,7 @@ if api_key:
 
 # ---------- Helpers ----------
 def need_key():
-    st.warning("Enter your OPENAI_API_KEY in the sidebar to use the app.")
+    st.warning("Please enter your OPENAI_API_KEY in the sidebar to use the app.")
     return
 
 def ai_chat(messages):
@@ -63,9 +63,9 @@ def edit_file_with_instructions(file_text, instructions):
     if not file_text:
         st.error("No file content to edit.")
         return ""
-    max_chars = 120000  # adjust if your model/context allows more
+    max_chars = 120000  # Adjust if your model/context allows more
     if len(file_text) > max_chars:
-        st.error(f"File is too large ({len(file_text):,} chars). Please upload a smaller file or split it.")
+        st.error(f"File is too large ({len(file_text):,} characters). Please upload a smaller file or split it.")
         return ""
 
     system_prompt = (
@@ -265,7 +265,7 @@ with tab_edit:
             for msg in edit_chat_messages:
                 with st.chat_message(msg["role"], avatar="💬"):
                     st.write(msg["content"])
-        edit_user_msg = st.chat_input("Ask chatbot about your file(s) or instructions", key="edit_chat_input")
+        edit_user_msg = st.chat_input("Ask the chatbot about your file(s) or instructions", key="edit_chat_input")
         if edit_user_msg:
             st.session_state.edit_chat_history.append({"role": "user", "content": edit_user_msg})
             with edit_chat_container:
@@ -276,7 +276,7 @@ with tab_edit:
                         # Add file content and instructions to the context for the AI
                         context = ""
                         if st.session_state.is_zip and st.session_state.zip_file_list:
-                            context = f"ZIP file with files: {', '.join(st.session_state.zip_file_list[:10])}..."
+                            context = f"ZIP file containing: {', '.join(st.session_state.zip_file_list[:10])}..."
                         elif st.session_state.file_names:
                             context = f"Project files: {', '.join(st.session_state.file_names[:10])}..."
                             if st.session_state.selected_file:
@@ -327,7 +327,7 @@ with tab_edit:
 
     # Enable/disable edit button
     if st.session_state.is_zip and st.session_state.zip_file_list:
-        run_edit_disabled = False if st.session_state.zip_file_list else True
+        run_edit_disabled = not bool(st.session_state.zip_file_list)
     elif st.session_state.file_names:
         run_edit_disabled = False
     else:
