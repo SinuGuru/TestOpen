@@ -315,13 +315,6 @@ with tab_edit:
             key="file_select_box",
         )
         st.session_state.selected_file = selected
-        st.text_area(
-            "Original file content (read-only preview)",
-            value=st.session_state.file_contents.get(selected, ""),
-            height=240,
-            disabled=True,
-            key="original_file_preview",
-        )
     else:
         st.info("Upload files to get started.")
 
@@ -378,7 +371,101 @@ with tab_edit:
     edited_zip = st.session_state.get("edited_zip", {})
     edited_content = st.session_state.get("edited_content", "")
 
-    # Download and preview for edited files
+    # --- VS Code-like Editor Section ---
+    # Install streamlit-ace if not already installed: pip install streamlit-ace
+    try:
+        from streamlit_ace import st_ace
+    except ImportError:
+        st.warning("streamlit-ace is not installed. Please run `pip install streamlit-ace` to enable the VS Code-style editor.")
+        st_ace = None
+
+    # Supported Ace themes and languages
+    ACE_THEMES = [
+        "monokai", "github", "dracula", "solarized_dark", "solarized_light", "twilight",
+        "cobalt", "tomorrow_night", "xcode", "kuroir", "terminal", "chrome", "clouds_midnight"
+    ]
+    ACE_LANGUAGES = [
+        "python", "javascript", "typescript", "json", "markdown", "yaml", "html", "css",
+        "c_cpp", "java", "go", "ruby", "rust", "csharp", "php", "sql", "plain_text"
+    ]
+
+    # Helper to guess language from filename
+    def guess_language(filename):
+        ext = os.path.splitext(filename)[1].lower()
+        if ext == ".py":
+            return "python"
+        if ext in [".js", ".jsx"]:
+            return "javascript"
+        if ext in [".ts", ".tsx"]:
+            return "typescript"
+        if ext == ".json":
+            return "json"
+        if ext in [".md", ".markdown"]:
+            return "markdown"
+        if ext in [".yaml", ".yml"]:
+            return "yaml"
+        if ext == ".html":
+            return "html"
+        if ext == ".css":
+            return "css"
+        if ext in [".c", ".cpp", ".h", ".hpp"]:
+            return "c_cpp"
+        if ext == ".java":
+            return "java"
+        if ext == ".go":
+            return "go"
+        if ext == ".rb":
+            return "ruby"
+        if ext == ".rs":
+            return "rust"
+        if ext in [".cs"]:
+            return "csharp"
+        if ext == ".php":
+            return "php"
+        if ext in [".sql"]:
+            return "sql"
+        return "plain_text"
+
+    # --- Single file VS Code-style editor ---
+    if st_ace and st.session_state.file_names and not st.session_state.is_zip:
+        st.markdown("### VS Code-style File Editor")
+        editor_col, theme_col = st.columns([5, 1])
+        with theme_col:
+            ace_theme = st.selectbox("Editor Theme", ACE_THEMES, index=ACE_THEMES.index("monokai"), key="ace_theme")
+        with editor_col:
+            selected_file = st.session_state.selected_file
+            language = guess_language(selected_file)
+            # Use session state to preserve edits before saving
+            if "ace_editor_content" not in st.session_state:
+                st.session_state.ace_editor_content = {}
+            if selected_file not in st.session_state.ace_editor_content:
+                st.session_state.ace_editor_content[selected_file] = st.session_state.file_contents.get(selected_file, "")
+            # VS Code-style Ace editor
+            ace_content = st_ace(
+                value=st.session_state.ace_editor_content[selected_file],
+                language=language,
+                theme=ace_theme,
+                keybinding="vscode",
+                font_size=16,
+                tab_size=4,
+                show_gutter=True,
+                show_print_margin=False,
+                wrap=True,
+                auto_update=True,
+                readonly=False,
+                min_lines=20,
+                max_lines=40,
+                key=f"ace_{selected_file}",
+            )
+            st.session_state.ace_editor_content[selected_file] = ace_content
+
+            save_col, _ = st.columns([1, 5])
+            with save_col:
+                if st.button("💾 Save", key=f"save_{selected_file}"):
+                    st.session_state.file_contents[selected_file] = ace_content
+                    st.success(f"Saved changes to {selected_file}.")
+
+    # --- Edited files download and preview ---
     if st.session_state.is_zip and edited_zip:
         st.markdown("**Edited files in ZIP:**")
         for fname, content in list(edited_zip.items())[:5]:
@@ -398,19 +485,57 @@ with tab_edit:
             list(edited_files.keys()),
             key="edited_file_select_box",
         )
-        st.text_area(
-            "Edited file content",
-            value=edited_files[selected_edited],
-            height=300,
-            key="edited_file_preview",
-        )
-        st.download_button(
-            "Download edited file",
-            data=edited_files[selected_edited].encode("utf-8"),
-            file_name=f"edited_{selected_edited}",
-            mime="text/plain",
-            key="download_single_edited_file",
-        )
+        # VS Code-style editor for edited file
+        if st_ace:
+            ace_theme = st.session_state.get("ace_theme", "monokai")
+            language = guess_language(selected_edited)
+            if "ace_edited_content" not in st.session_state:
+                st.session_state.ace_edited_content = {}
+            if selected_edited not in st.session_state.ace_edited_content:
+                st.session_state.ace_edited_content[selected_edited] = edited_files[selected_edited]
+            ace_edited_content = st_ace(
+                value=st.session_state.ace_edited_content[selected_edited],
+                language=language,
+                theme=ace_theme,
+                keybinding="vscode",
+                font_size=16,
+                tab_size=4,
+                show_gutter=True,
+                show_print_margin=False,
+                wrap=True,
+                auto_update=True,
+                readonly=False,
+                min_lines=20,
+                max_lines=40,
+                key=f"ace_edited_{selected_edited}",
+            )
+            st.session_state.ace_edited_content[selected_edited] = ace_edited_content
+            save_col, _ = st.columns([1, 5])
+            with save_col:
+                if st.button("💾 Save (edited)", key=f"save_edited_{selected_edited}"):
+                    st.session_state.edited_files[selected_edited] = ace_edited_content
+                    st.success(f"Saved changes to {selected_edited}.")
+            st.download_button(
+                "Download edited file",
+                data=ace_edited_content.encode("utf-8"),
+                file_name=f"edited_{selected_edited}",
+                mime="text/plain",
+                key="download_single_edited_file",
+            )
+        else:
+            st.text_area(
+                "Edited file content",
+                value=edited_files[selected_edited],
+                height=300,
+                key="edited_file_preview",
+            )
+            st.download_button(
+                "Download edited file",
+                data=edited_files[selected_edited].encode("utf-8"),
+                file_name=f"edited_{selected_edited}",
+                mime="text/plain",
+                key="download_single_edited_file",
+            )
         mem_zip = make_zip_from_dict(edited_files)
         st.download_button(
             "Download all edited files as ZIP",
@@ -420,15 +545,45 @@ with tab_edit:
             key="download_all_edited_files_zip",
         )
     elif edited_content:
-        st.text_area(
-            "Edited file content",
-            value=edited_content,
-            height=300,
-        )
-        if edited_content:
+        if st_ace:
+            ace_theme = st.session_state.get("ace_theme", "monokai")
+            ace_content = st_ace(
+                value=edited_content,
+                language="plain_text",
+                theme=ace_theme,
+                keybinding="vscode",
+                font_size=16,
+                tab_size=4,
+                show_gutter=True,
+                show_print_margin=False,
+                wrap=True,
+                auto_update=True,
+                readonly=False,
+                min_lines=20,
+                max_lines=40,
+                key="ace_single_edited_content",
+            )
+            save_col, _ = st.columns([1, 5])
+            with save_col:
+                if st.button("💾 Save (single edited)", key="save_single_edited"):
+                    st.session_state.edited_content = ace_content
+                    st.success("Saved changes.")
             st.download_button(
                 "Download edited file",
-                data=edited_content.encode("utf-8"),
+                data=ace_content.encode("utf-8"),
                 file_name="edited_file.txt",
                 mime="text/plain",
             )
+        else:
+            st.text_area(
+                "Edited file content",
+                value=edited_content,
+                height=300,
+            )
+            if edited_content:
+                st.download_button(
+                    "Download edited file",
+                    data=edited_content.encode("utf-8"),
+                    file_name="edited_file.txt",
+                    mime="text/plain",
+                )
